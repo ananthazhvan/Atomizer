@@ -35,6 +35,23 @@ export interface AgentBreakdown {
   resolution_rate: number;
 }
 
+export interface ConversationSummary {
+  id: string;
+  message: string;
+  agent_type: string;
+  confidence: number;
+  status: string;
+  time: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  business_domain: string;
+  created_at: string;
+}
+
 export const api = {
   chat(projectId: string, message: string, sessionId: string) {
     return request<ChatResponse>("/api/chat", {
@@ -72,5 +89,26 @@ export const api = {
     return request<AgentBreakdown[]>(
       `/api/analytics/agent-breakdown?project_id=${encodeURIComponent(projectId)}&period=${period}`
     );
+  },
+
+  getConversations(projectId: string, limit: number = 20) {
+    return request<ConversationSummary[]>(
+      `/api/analytics/conversations?project_id=${encodeURIComponent(projectId)}&limit=${limit}`
+    );
+  },
+
+  listProjects() {
+    return request<Project[]>("/api/projects");
+  },
+
+  createProject(data: { name: string; description?: string; business_domain?: string }) {
+    return request<Project>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getProject(projectId: string) {
+    return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`);
   },
 };

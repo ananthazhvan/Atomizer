@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -16,8 +16,9 @@ import {
 import { AgentBadge } from "@/components/AgentBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { api, AgentBreakdown } from "@/lib/api";
 
-const dailyData = [
+const fallbackDaily = [
   { day: "Mon", conversations: 145 },
   { day: "Tue", conversations: 198 },
   { day: "Wed", conversations: 172 },
@@ -27,48 +28,53 @@ const dailyData = [
   { day: "Sun", conversations: 67 },
 ];
 
-const agentDistribution = [
+const fallbackPie = [
   { name: "Sales", value: 480, color: "#3b82f6" },
   { name: "Support", value: 385, color: "#10b981" },
   { name: "Customer Care", value: 220, color: "#f59e0b" },
   { name: "General", value: 199, color: "#71717a" },
 ];
 
-const agentBreakdown = [
-  {
-    agent_type: "SALES",
-    total: 480,
-    avgConfidence: 0.93,
-    resolutionRate: 0.91,
-  },
-  {
-    agent_type: "SUPPORT",
-    total: 385,
-    avgConfidence: 0.87,
-    resolutionRate: 0.84,
-  },
-  {
-    agent_type: "CUSTOMER_CARE",
-    total: 220,
-    avgConfidence: 0.9,
-    resolutionRate: 0.78,
-  },
-  {
-    agent_type: "GENERAL",
-    total: 199,
-    avgConfidence: 0.96,
-    resolutionRate: 0.99,
-  },
+const fallbackBreakdown: AgentBreakdown[] = [
+  { agent_type: "SALES", count: 480, avg_confidence: 0.93, resolution_rate: 91 },
+  { agent_type: "SUPPORT", count: 385, avg_confidence: 0.87, resolution_rate: 84 },
+  { agent_type: "CUSTOMER_CARE", count: 220, avg_confidence: 0.9, resolution_rate: 78 },
+  { agent_type: "GENERAL", count: 199, avg_confidence: 0.96, resolution_rate: 99 },
 ];
+
+const AGENT_COLORS: Record<string, string> = {
+  SALES: "#3b82f6",
+  SUPPORT: "#10b981",
+  CUSTOMER_CARE: "#f59e0b",
+  GENERAL: "#71717a",
+};
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7d");
+  const [breakdown, setBreakdown] = useState<AgentBreakdown[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAgentBreakdown("demo", period);
+      setBreakdown(data);
+    } catch {
+      setBreakdown(fallbackBreakdown);
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
+    fetchData();
+  }, [fetchData]);
+
+  const pieData = breakdown.map((b) => ({
+    name: b.agent_type === "CUSTOMER_CARE" ? "Customer Care" : b.agent_type.charAt(0) + b.agent_type.slice(1).toLowerCase(),
+    value: b.count,
+    color: AGENT_COLORS[b.agent_type] || "#71717a",
+  }));
 
   return (
     <div className="px-8 py-8 max-w-6xl">
@@ -110,7 +116,7 @@ export default function AnalyticsPage() {
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={dailyData}>
+                  <LineChart data={fallbackDaily}>
                     <CartesianGrid
                       strokeDasharray="3 3"
                       stroke="rgba(255,255,255,0.04)"
@@ -151,7 +157,7 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={agentDistribution}
+                      data={pieData.length > 0 ? pieData : fallbackPie}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -159,7 +165,7 @@ export default function AnalyticsPage() {
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {agentDistribution.map((entry) => (
+                      {(pieData.length > 0 ? pieData : fallbackPie).map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
@@ -176,7 +182,7 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </div>
               <div className="flex items-center justify-center gap-6 mt-4">
-                {agentDistribution.map((d) => (
+                {(pieData.length > 0 ? pieData : fallbackPie).map((d) => (
                   <div key={d.name} className="flex items-center gap-2">
                     <span
                       className="size-2.5 rounded-full"
@@ -226,7 +232,7 @@ export default function AnalyticsPage() {
                       ))}
                     </tr>
                   ))
-                : agentBreakdown.map((agent) => (
+                : breakdown.map((agent) => (
                     <tr
                       key={agent.agent_type}
                       className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
@@ -235,13 +241,13 @@ export default function AnalyticsPage() {
                         <AgentBadge type={agent.agent_type} />
                       </td>
                       <td className="px-6 py-4 font-mono text-sm text-foreground">
-                        {agent.total.toLocaleString()}
+                        {agent.count.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 font-mono text-sm text-foreground">
-                        {(agent.avgConfidence * 100).toFixed(0)}%
+                        {(agent.avg_confidence * 100).toFixed(0)}%
                       </td>
                       <td className="px-6 py-4 font-mono text-sm text-foreground">
-                        {(agent.resolutionRate * 100).toFixed(0)}%
+                        {agent.resolution_rate.toFixed(0)}%
                       </td>
                     </tr>
                   ))}

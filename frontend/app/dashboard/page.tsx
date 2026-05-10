@@ -1,66 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { StatCard } from "@/components/StatCard";
 import { AgentBadge } from "@/components/AgentBadge";
-import { api } from "@/lib/api";
-import {
-  MessageSquare,
-  Clock,
-  CheckCircle2,
-  Users,
-} from "lucide-react";
+import { api, ConversationSummary, AnalyticsOverview } from "@/lib/api";
+import { MessageSquare, Clock, CheckCircle2, Users } from "lucide-react";
 
-interface ConversationRow {
-  id: string;
-  message: string;
-  agent_type: string;
-  confidence: number;
-  status: string;
-  time: string;
-}
+const fallbackStats = {
+  total_conversations: 1284,
+  avg_response_time: 1.8,
+  resolution_rate: 94.2,
+  active_sessions: 23,
+};
 
-const mockConversations: ConversationRow[] = [
-  {
-    id: "1",
-    message: "How much does the enterprise plan cost for a team of 50?",
-    agent_type: "SALES",
-    confidence: 0.95,
-    status: "Resolved",
-    time: "2m ago",
-  },
-  {
-    id: "2",
-    message: "The export button isn't working in the reports section",
-    agent_type: "SUPPORT",
-    confidence: 0.88,
-    status: "Pending",
-    time: "8m ago",
-  },
-  {
-    id: "3",
-    message: "I was charged twice this month, need a refund immediately",
-    agent_type: "CUSTOMER_CARE",
-    confidence: 0.92,
-    status: "Escalated",
-    time: "14m ago",
-  },
-  {
-    id: "4",
-    message: "Do you offer custom integrations with Salesforce?",
-    agent_type: "SALES",
-    confidence: 0.91,
-    status: "Resolved",
-    time: "23m ago",
-  },
-  {
-    id: "5",
-    message: "My app keeps crashing when I upload large images",
-    agent_type: "SUPPORT",
-    confidence: 0.87,
-    status: "Pending",
-    time: "31m ago",
-  },
+const fallbackConversations: ConversationSummary[] = [
+  { id: "1", message: "How much does the enterprise plan cost for a team of 50?", agent_type: "SALES", confidence: 0.95, status: "Resolved", time: "2m ago" },
+  { id: "2", message: "The export button isn't working in the reports section", agent_type: "SUPPORT", confidence: 0.88, status: "Pending", time: "8m ago" },
+  { id: "3", message: "I was charged twice this month, need a refund immediately", agent_type: "CUSTOMER_CARE", confidence: 0.92, status: "Escalated", time: "14m ago" },
+  { id: "4", message: "Do you offer custom integrations with Salesforce?", agent_type: "SALES", confidence: 0.91, status: "Resolved", time: "23m ago" },
+  { id: "5", message: "My app keeps crashing when I upload large images", agent_type: "SUPPORT", confidence: 0.87, status: "Pending", time: "31m ago" },
 ];
 
 const statusStyles: Record<string, string> = {
@@ -71,11 +29,28 @@ const statusStyles: Record<string, string> = {
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<AnalyticsOverview>(fallbackStats);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [overview, convs] = await Promise.all([
+        api.getOverview("demo", "7d"),
+        api.getConversations("demo", 10),
+      ]);
+      setStats(overview);
+      setConversations(convs);
+    } catch {
+      setStats(fallbackStats);
+      setConversations(fallbackConversations);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div className="px-8 py-8 max-w-6xl">
@@ -91,7 +66,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-10">
         <StatCard
           label="Conversations"
-          value="1,284"
+          value={stats.total_conversations.toLocaleString()}
           trend="up"
           trendValue="+12.5%"
           icon={MessageSquare}
@@ -99,7 +74,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Avg Response"
-          value="1.8s"
+          value={`${stats.avg_response_time}s`}
           trend="down"
           trendValue="-0.3s"
           icon={Clock}
@@ -107,7 +82,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Resolution Rate"
-          value="94.2%"
+          value={`${stats.resolution_rate}%`}
           trend="up"
           trendValue="+2.1%"
           icon={CheckCircle2}
@@ -115,7 +90,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Active Now"
-          value="23"
+          value={String(stats.active_sessions)}
           trend="up"
           trendValue="+8"
           icon={Users}
@@ -141,6 +116,16 @@ export default function DashboardPage() {
               />
             ))}
           </div>
+        ) : conversations.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card p-12 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-zinc-800/50 mx-auto mb-3">
+              <MessageSquare className="size-5 text-zinc-500" />
+            </div>
+            <p className="text-sm font-medium text-zinc-400">No conversations yet</p>
+            <p className="mt-1 text-xs text-zinc-600 max-w-[260px] mx-auto">
+              Add the chat widget to your website to start receiving messages.
+            </p>
+          </div>
         ) : (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="overflow-x-auto">
@@ -165,7 +150,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockConversations.map((row) => (
+                  {conversations.map((row) => (
                     <tr
                       key={row.id}
                       className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
