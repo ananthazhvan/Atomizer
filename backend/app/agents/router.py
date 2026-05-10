@@ -66,7 +66,8 @@ if __name__ == "__main__":
         messages = [
             "How much does the enterprise plan cost?",
             "The app crashes when I click save. Help!",
-            "I was charged twice this month and I'm not happy about it.",
+            "I was charged twice this month and I'm not happy about it."
+            "I’m currently reviewing my invoice and I am extremely disappointed to see I was charged for the premium tier even though I requested a downgrade last week, which I can't even check because my account login is now showing a 500 server error, so I need someone to fix the technical bug, refund the difference, and tell me if I need to buy a different subscription plan to avoid this happening again, thanks.",
         ]
 
         for msg in messages:
