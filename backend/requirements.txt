@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+chromadb
+anthropic
+python-multipart
+pypdf2
+python-dotenv
+pydantic
+aiosqlite
