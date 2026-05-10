@@ -48,7 +48,7 @@ export default function KnowledgePage() {
         await api.uploadKnowledge(file, "demo");
         toast.success(`Uploaded ${file.name}`);
       } catch {
-        toast.success(`Uploaded ${file.name} (offline mode)`);
+        toast.error(`Failed to upload ${file.name}`);
       }
     }
     setFiles([]);

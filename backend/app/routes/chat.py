@@ -37,42 +37,49 @@ AGENT_MAP = {
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
-    client = _get_client()
+    try:
+        client = _get_client()
 
-    router = RouterAgent(client)
-    classification = await router.classify(request.message)
-    category = classification["category"]
-    confidence = classification["confidence"]
+        router = RouterAgent(client)
+        classification = await router.classify(request.message)
+        category = classification["category"]
+        confidence = classification["confidence"]
 
-    agent_cls = AGENT_MAP.get(category)
-    if agent_cls is None:
-        return ChatResponse(
-            response="Thanks for your message. How can I help you today?",
-            agent_type="GENERAL",
+        agent_cls = AGENT_MAP.get(category)
+        if agent_cls is None:
+            return ChatResponse(
+                response="Thanks for your message. How can I help you today?",
+                agent_type="GENERAL",
+                confidence=confidence,
+            )
+
+        history = await _load_history(db, request.session_id)
+
+        agent = agent_cls(client)
+        knowledge = await _get_knowledge_context(request.message, request.project_id)
+        result = await agent.run(request.message, history, knowledge)
+
+        await _store_conversation(
+            db,
+            project_id=request.project_id,
+            session_id=request.session_id,
+            user_message=request.message,
+            response=result["response"],
+            agent_type=category,
             confidence=confidence,
         )
 
-    history = await _load_history(db, request.session_id)
-
-    agent = agent_cls(client)
-    knowledge = await _get_knowledge_context(request.message, request.project_id)
-    result = await agent.run(request.message, history, knowledge)
-
-    await _store_conversation(
-        db,
-        project_id=request.project_id,
-        session_id=request.session_id,
-        user_message=request.message,
-        response=result["response"],
-        agent_type=category,
-        confidence=confidence,
-    )
-
-    return ChatResponse(
-        response=result["response"],
-        agent_type=category,
-        confidence=confidence,
-    )
+        return ChatResponse(
+            response=result["response"],
+            agent_type=category,
+            confidence=confidence,
+        )
+    except Exception:
+        return ChatResponse(
+            response="I'm having trouble right now. Please try again in a moment.",
+            agent_type="GENERAL",
+            confidence=0.0,
+        )
 
 
 async def _load_history(db: AsyncSession, session_id: str) -> list[dict]:

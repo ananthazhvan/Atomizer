@@ -66,3 +66,9 @@ class BaseAgent:
                 "confidence": 0.0,
                 "reasoning": f"API error: {e.status_code}",
             }
+        except Exception as e:
+            return {
+                "response": "I'm having trouble connecting. Please try again in a moment.",
+                "confidence": 0.0,
+                "reasoning": f"Unexpected error: {str(e)}",
+            }

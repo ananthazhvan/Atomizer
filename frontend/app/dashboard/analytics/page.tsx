@@ -232,6 +232,14 @@ export default function AnalyticsPage() {
                       ))}
                     </tr>
                   ))
+                : breakdown.length === 0
+                ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center">
+                        <p className="text-sm text-muted-foreground">No agent activity for this period.</p>
+                      </td>
+                    </tr>
+                  )
                 : breakdown.map((agent) => (
                     <tr
                       key={agent.agent_type}

@@ -11,9 +11,16 @@ async def upload_knowledge(
     file: UploadFile = File(...),
     project_id: str = Form(...),
 ):
-    chunks = await process_document(file, project_id)
-    count = await embed_and_store(chunks, project_id, file.filename or "untitled")
-    return {"chunks_stored": count}
+    try:
+        chunks = await process_document(file, project_id)
+        count = await embed_and_store(chunks, project_id, file.filename or "untitled")
+        return {"chunks_stored": count}
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
 
 
 @router.get("/knowledge/list")
