@@ -16,7 +16,7 @@ import {
 import { AgentBadge } from "@/components/AgentBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, AgentBreakdown } from "@/lib/api";
+import { api, AgentBreakdown, DailyStats } from "@/lib/api";
 
 const fallbackDaily = [
   { day: "Mon", conversations: 145 },
@@ -53,14 +53,20 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7d");
   const [breakdown, setBreakdown] = useState<AgentBreakdown[]>([]);
+  const [daily, setDaily] = useState<DailyStats[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getAgentBreakdown("demo", period);
-      setBreakdown(data);
+      const [bd, dy] = await Promise.all([
+        api.getAgentBreakdown("demo", period),
+        api.getDailyStats("demo", period),
+      ]);
+      setBreakdown(bd);
+      setDaily(dy);
     } catch {
       setBreakdown(fallbackBreakdown);
+      setDaily(fallbackDaily);
     } finally {
       setLoading(false);
     }
@@ -70,11 +76,17 @@ export default function AnalyticsPage() {
     fetchData();
   }, [fetchData]);
 
-  const pieData = breakdown.map((b) => ({
-    name: b.agent_type === "CUSTOMER_CARE" ? "Customer Care" : b.agent_type.charAt(0) + b.agent_type.slice(1).toLowerCase(),
-    value: b.count,
-    color: AGENT_COLORS[b.agent_type] || "#71717a",
-  }));
+  const pieData = breakdown.length > 0
+    ? breakdown.map((b) => ({
+        name: b.agent_type === "CUSTOMER_CARE" ? "Customer Care" : b.agent_type.charAt(0) + b.agent_type.slice(1).toLowerCase(),
+        value: b.count,
+        color: AGENT_COLORS[b.agent_type] || "#71717a",
+      }))
+    : fallbackPie;
+
+  const chartData = daily.length > 0 && daily.some(d => d.conversations > 0)
+    ? daily
+    : fallbackDaily;
 
   return (
     <div className="px-8 py-8 max-w-6xl">
@@ -116,7 +128,7 @@ export default function AnalyticsPage() {
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={fallbackDaily}>
+                  <LineChart data={chartData}>
                     <CartesianGrid
                       strokeDasharray="3 3"
                       stroke="rgba(255,255,255,0.04)"
@@ -157,7 +169,7 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={pieData.length > 0 ? pieData : fallbackPie}
+                      data={pieData}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -165,7 +177,7 @@ export default function AnalyticsPage() {
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {(pieData.length > 0 ? pieData : fallbackPie).map((entry) => (
+                      {(pieData).map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
@@ -182,7 +194,7 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </div>
               <div className="flex items-center justify-center gap-6 mt-4">
-                {(pieData.length > 0 ? pieData : fallbackPie).map((d) => (
+                {(pieData).map((d) => (
                   <div key={d.name} className="flex items-center gap-2">
                     <span
                       className="size-2.5 rounded-full"

@@ -18,7 +18,7 @@ class SupportAgent(BaseAgent):
     def __init__(
         self,
         client: anthropic.AsyncAnthropic,
-        model: str = "deepseek-v4-flash",
+        model: str = "deepseek-chat",
     ):
         super().__init__(
             client=client,

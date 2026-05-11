@@ -15,6 +15,8 @@ export interface ChatResponse {
   response: string;
   agent_type: string;
   confidence: number;
+  handoff_from?: string | null;
+  handoff_to?: string | null;
 }
 
 export interface DocumentItem {
@@ -52,6 +54,49 @@ export interface Project {
   created_at: string;
 }
 
+export interface DailyStats {
+  day: string;
+  conversations: number;
+}
+
+export interface ConversationDetail {
+  id: string;
+  project_id: string;
+  session_id: string;
+  status: string;
+  escalated_at: string | null;
+  escalation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: MessageDetail[];
+}
+
+export interface MessageDetail {
+  id: string;
+  role: string;
+  content: string;
+  agent_type: string | null;
+  confidence: number | null;
+  created_at: string;
+}
+
+export interface EscalatedConversation {
+  id: string;
+  session_id: string;
+  first_message: string;
+  agent_type: string;
+  escalated_at: string;
+  escalation_reason: string | null;
+  status: string;
+}
+
+export interface StreamEvent {
+  agent_type?: string;
+  confidence?: number;
+  text?: string;
+  status?: string;
+}
+
 export const api = {
   chat(projectId: string, message: string, sessionId: string) {
     return request<ChatResponse>("/api/chat", {
@@ -62,6 +107,92 @@ export const api = {
         session_id: sessionId,
       }),
     });
+  },
+
+  chatStream(
+    projectId: string,
+    message: string,
+    sessionId: string,
+    onAgent: (agentType: string, confidence: number) => void,
+    onChunk: (text: string) => void,
+    onDone: (confidence: number, status: string) => void,
+    onError: (error: string) => void,
+  ): AbortController {
+    const controller = new AbortController();
+
+    fetch(`${BASE_URL}/api/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: projectId,
+        message,
+        session_id: sessionId,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() || "";
+
+          for (const block of events) {
+            if (!block.trim()) continue;
+            const eventMatch = block.match(/^event:\s*(\w+)$/m);
+            const dataMatch = block.match(/^data:\s*(.+)$/m);
+            if (!eventMatch || !dataMatch) continue;
+
+            try {
+              const payload = JSON.parse(dataMatch[1]);
+              switch (eventMatch[1]) {
+                case "agent":
+                  onAgent(payload.agent_type, payload.confidence);
+                  break;
+                case "chunk":
+                  onChunk(payload.text);
+                  break;
+                case "done":
+                  onDone(payload.confidence, payload.status);
+                  break;
+                case "error":
+                  onError(payload.text);
+                  break;
+              }
+            } catch {
+              // skip unparseable events
+            }
+          }
+        }
+
+        // Process any remaining complete event in buffer
+        if (buffer.trim()) {
+          const eventMatch = buffer.match(/^event:\s*(\w+)$/m);
+          const dataMatch = buffer.match(/^data:\s*(.+)$/m);
+          if (eventMatch && dataMatch) {
+            try {
+              const payload = JSON.parse(dataMatch[1]);
+              if (eventMatch[1] === "done") onDone(payload.confidence, payload.status);
+            } catch { /* skip */ }
+          }
+        }
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          onError(err.message || "Connection failed");
+        }
+      });
+
+    return controller;
   },
 
   uploadKnowledge(file: File, projectId: string) {
@@ -82,6 +213,12 @@ export const api = {
   getOverview(projectId: string, period: string) {
     return request<AnalyticsOverview>(
       `/api/analytics/overview?project_id=${encodeURIComponent(projectId)}&period=${period}`
+    );
+  },
+
+  getDailyStats(projectId: string, period: string) {
+    return request<DailyStats[]>(
+      `/api/analytics/daily?project_id=${encodeURIComponent(projectId)}&period=${period}`
     );
   },
 
@@ -134,34 +271,3 @@ export const api = {
     );
   },
 };
-
-export interface ConversationDetail {
-  id: string;
-  project_id: string;
-  session_id: string;
-  status: string;
-  escalated_at: string | null;
-  escalation_reason: string | null;
-  created_at: string;
-  updated_at: string;
-  messages: MessageDetail[];
-}
-
-export interface MessageDetail {
-  id: string;
-  role: string;
-  content: string;
-  agent_type: string | null;
-  confidence: number | null;
-  created_at: string;
-}
-
-export interface EscalatedConversation {
-  id: string;
-  session_id: string;
-  first_message: string;
-  agent_type: string;
-  escalated_at: string;
-  escalation_reason: string | null;
-  status: string;
-}

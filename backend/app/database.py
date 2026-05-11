@@ -35,6 +35,8 @@ class Conversation(Base):
     project_id: Mapped[str] = mapped_column(String, index=True)
     session_id: Mapped[str] = mapped_column(String, index=True)
     status: Mapped[str] = mapped_column(String, default="active")
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    escalation_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -50,6 +52,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     agent_type: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")

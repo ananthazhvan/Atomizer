@@ -20,12 +20,28 @@ You must respond with ONLY a JSON object and nothing else. The JSON must have th
 - "confidence": a number between 0.0 and 1.0 indicating how confident you are
 - "reasoning": a short (1 sentence) explanation of why you picked this category"""
 
+RECLASSIFY_SYSTEM_PROMPT = """You are a message router reviewing an ongoing conversation. The current agent may not be the best fit for what the customer now needs. Re-evaluate based on the FULL conversation history.
+
+Categories: SALES, SUPPORT, CUSTOMER_CARE, GENERAL
+
+Consider:
+- Has the topic shifted? (e.g. started as sales inquiry, now asking for tech support)
+- Is the customer expressing frustration with the current agent's responses?
+- Does the latest message clearly belong to a different category?
+- If the category hasn't changed, return the same category.
+
+You must respond with ONLY a JSON object:
+- "category": the CORRECT category for the customer's current need
+- "confidence": 0.0-1.0
+- "should_handoff": true/false — true only if the category has genuinely changed
+- "reasoning": 1 sentence explaining your decision"""
+
 
 class RouterAgent(BaseAgent):
     def __init__(
         self,
         client: anthropic.AsyncAnthropic,
-        model: str = "deepseek-v4-flash",
+        model: str = "deepseek-chat",
     ):
         super().__init__(
             client=client,
@@ -48,6 +64,35 @@ class RouterAgent(BaseAgent):
                 "category": "GENERAL",
                 "confidence": 0.3,
                 "reasoning": "Failed to parse classification, defaulting to GENERAL",
+            }
+
+    async def reclassify(self, conversation_history: list[dict]) -> dict:
+        history_text = "\n".join(
+            f"[{m.get('role', 'user')}]: {m.get('content', '')[:300]}"
+            for m in (conversation_history or [])
+        )
+        prompt = f"Conversation so far:\n{history_text}\n\nBased on the full conversation, what category does the customer's CURRENT need fall into?"
+
+        orig_system = self.system_prompt
+        self.system_prompt = RECLASSIFY_SYSTEM_PROMPT
+        result = await self.run(prompt)
+        self.system_prompt = orig_system
+
+        raw = result["response"]
+        try:
+            parsed = json.loads(raw)
+            return {
+                "category": parsed.get("category", "GENERAL"),
+                "confidence": float(parsed.get("confidence", 0.5)),
+                "should_handoff": parsed.get("should_handoff", False),
+                "reasoning": parsed.get("reasoning", ""),
+            }
+        except (json.JSONDecodeError, TypeError):
+            return {
+                "category": "GENERAL",
+                "confidence": 0.3,
+                "should_handoff": False,
+                "reasoning": "Failed to parse reclassification",
             }
 
 
