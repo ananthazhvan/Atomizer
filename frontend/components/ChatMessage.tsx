@@ -1,6 +1,6 @@
 import { AgentBadge } from "@/components/AgentBadge";
 import { cn } from "@/lib/utils";
-import { Bot, User, ArrowRightLeft } from "lucide-react";
+import { Bot, User, ArrowRightLeft, Smile, Meh, Frown, AlertTriangle } from "lucide-react";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -9,8 +9,24 @@ interface ChatMessageProps {
   confidence?: number;
   handoffFrom?: string;
   handoffTo?: string;
+  sentiment?: string;
+  satisfaction?: number;
   isStreaming?: boolean;
 }
+
+const sentimentIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  positive: Smile,
+  neutral: Meh,
+  negative: Frown,
+  frustrated: AlertTriangle,
+};
+
+const sentimentColors: Record<string, string> = {
+  positive: "text-emerald-400",
+  neutral: "text-zinc-500",
+  negative: "text-amber-400",
+  frustrated: "text-red-400",
+};
 
 const agentBorderColors: Record<string, string> = {
   SALES: "border-l-blue-500/30",
@@ -33,9 +49,12 @@ export function ChatMessage({
   confidence,
   handoffFrom,
   handoffTo,
+  sentiment,
+  satisfaction,
   isStreaming,
 }: ChatMessageProps) {
   const isUser = role === "user";
+  const SentimentIcon = sentiment ? sentimentIcons[sentiment] : null;
 
   return (
     <div className={cn("flex gap-2.5", isUser && "flex-row-reverse")}>
@@ -121,6 +140,17 @@ export function ChatMessage({
                 </span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Sentiment indicator on user messages */}
+        {isUser && SentimentIcon && (
+          <div className="flex items-center gap-1.5 justify-end pr-0.5">
+            <SentimentIcon className={cn("size-3", sentimentColors[sentiment || "neutral"] || "text-zinc-500")} />
+            <span className={cn("text-[10px] capitalize", sentimentColors[sentiment || "neutral"] || "text-zinc-500")}>
+              {sentiment}
+              {satisfaction !== undefined && ` · ${(satisfaction * 100).toFixed(0)}%`}
+            </span>
           </div>
         )}
       </div>

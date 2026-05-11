@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { AgentBadge } from "@/components/AgentBadge";
+import { useProject } from "@/components/ProjectContext";
 import { api, EscalatedConversation } from "@/lib/api";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 
@@ -11,13 +13,14 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function EscalatedPage() {
+  const { projectId } = useProject();
   const [loading, setLoading] = useState(true);
   const [escalated, setEscalated] = useState<EscalatedConversation[]>([]);
   const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const data = await api.getEscalated("demo", 20);
+      const data = await api.getEscalated(projectId, 20);
       setEscalated(data);
       setError("");
     } catch {
@@ -25,7 +28,7 @@ export default function EscalatedPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     fetchData();
@@ -109,9 +112,11 @@ export default function EscalatedPage() {
                       {conv.status === "pending_human" ? "Pending Human" : "Escalated"}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground truncate">
-                    {conv.first_message}
-                  </p>
+                  <Link href={`/dashboard/conversations/${conv.id}`}>
+                    <p className="text-sm text-foreground truncate hover:text-zinc-300 transition-colors">
+                      {conv.first_message}
+                    </p>
+                  </Link>
                   {conv.escalation_reason && (
                     <p className="mt-1.5 text-xs text-red-400/80 line-clamp-2">
                       Reason: {conv.escalation_reason}

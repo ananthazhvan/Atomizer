@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageSquare, X, Send, Loader2, ArrowRightLeft } from "lucide-react";
 import { ChatMessage } from "@/components/ChatMessage";
+import { useProject } from "@/components/ProjectContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -72,9 +73,12 @@ interface Message {
   confidence?: number;
   handoffFrom?: string;
   handoffTo?: string;
+  sentiment?: string;
+  satisfaction?: number;
 }
 
 export function ChatWidget() {
+  const { projectId } = useProject();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -131,7 +135,7 @@ export function ChatWidget() {
       let agentReceived = false;
 
       abortRef.current = api.chatStream(
-        "demo",
+        projectId,
         text,
         sessionId.current,
         // onAgent
@@ -184,7 +188,7 @@ export function ChatWidget() {
     } catch {
       // Fall back to non-streaming
       try {
-        const data = await api.chat("demo", text, sessionId.current);
+        const data = await api.chat(projectId, text, sessionId.current);
         setMessages((p) => [
           ...p,
           {
@@ -285,6 +289,8 @@ export function ChatWidget() {
                 confidence={m.confidence}
                 handoffFrom={m.handoffFrom}
                 handoffTo={m.handoffTo}
+                sentiment={m.sentiment}
+                satisfaction={m.satisfaction}
                 isStreaming={!!streamingAgent && m.role === "assistant" && m === messages[messages.length - 1]}
               />
             ))}

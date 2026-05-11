@@ -12,11 +12,14 @@ import {
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
 } from "recharts";
 import { AgentBadge } from "@/components/AgentBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, AgentBreakdown, DailyStats } from "@/lib/api";
+import { useProject } from "@/components/ProjectContext";
+import { api, AgentBreakdown, DailyStats, SentimentSummary } from "@/lib/api";
 
 const fallbackDaily = [
   { day: "Mon", conversations: 145 },
@@ -50,27 +53,32 @@ const AGENT_COLORS: Record<string, string> = {
 };
 
 export default function AnalyticsPage() {
+  const { projectId } = useProject();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7d");
   const [breakdown, setBreakdown] = useState<AgentBreakdown[]>([]);
   const [daily, setDaily] = useState<DailyStats[]>([]);
+  const [sentiment, setSentiment] = useState<SentimentSummary | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [bd, dy] = await Promise.all([
-        api.getAgentBreakdown("demo", period),
-        api.getDailyStats("demo", period),
+      const [bd, dy, sm] = await Promise.all([
+        api.getAgentBreakdown(projectId, period),
+        api.getDailyStats(projectId, period),
+        api.getSentiment(projectId, period),
       ]);
       setBreakdown(bd);
       setDaily(dy);
+      setSentiment(sm);
     } catch {
       setBreakdown(fallbackBreakdown);
       setDaily(fallbackDaily);
+      setSentiment(null);
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [projectId, period]);
 
   useEffect(() => {
     fetchData();
@@ -206,6 +214,152 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </>
+        )}
+      </div>
+
+      {/* Customer Satisfaction */}
+      <div className="rounded-xl border border-border bg-card p-6 mb-10">
+        <h3 className="mb-6 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+          Customer Satisfaction
+        </h3>
+        {loading ? (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Skeleton className="h-32 rounded-xl bg-muted" />
+            <Skeleton className="h-32 rounded-xl bg-muted" />
+            <Skeleton className="h-32 rounded-xl bg-muted" />
+          </div>
+        ) : sentiment ? (
+          <div className="space-y-8">
+            {/* Top stats row */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-xs text-muted-foreground mb-1">Overall Satisfaction</p>
+                <p className="text-3xl font-semibold tracking-tight">
+                  {(sentiment.overall_satisfaction * 100).toFixed(0)}
+                  <span className="text-base font-normal text-muted-foreground">%</span>
+                </p>
+                <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${sentiment.overall_satisfaction * 100}%`,
+                      background: sentiment.overall_satisfaction >= 0.7
+                        ? "linear-gradient(90deg, #10b981, #34d399)"
+                        : sentiment.overall_satisfaction >= 0.5
+                        ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
+                        : "linear-gradient(90deg, #ef4444, #f87171)",
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-xs text-muted-foreground mb-1">Messages Analyzed</p>
+                <p className="text-3xl font-semibold tracking-tight">{sentiment.total_messages}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-xs text-muted-foreground mb-1">Dominant Sentiment</p>
+                <p className="text-3xl font-semibold tracking-tight capitalize">
+                  {Object.entries(sentiment.sentiment_counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral"}
+                </p>
+              </div>
+            </div>
+
+            {/* Sentiment distribution + trajectory */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                  Sentiment Distribution
+                </p>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={Object.entries(sentiment.sentiment_counts).map(([key, val]) => ({
+                        name: key.charAt(0).toUpperCase() + key.slice(1),
+                        count: val,
+                        fill:
+                          key === "positive" ? "#10b981" :
+                          key === "neutral" ? "#71717a" :
+                          key === "negative" ? "#f59e0b" : "#ef4444",
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                      <XAxis type="number" stroke="#71717a" tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" stroke="#71717a" tick={{ fontSize: 12 }} width={80} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#18181b",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          color: "#e4e4e7",
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                        {Object.entries(sentiment.sentiment_counts).map(([key]) => (
+                          <Cell
+                            key={key}
+                            fill={
+                              key === "positive" ? "#10b981" :
+                              key === "neutral" ? "#71717a" :
+                              key === "negative" ? "#f59e0b" : "#ef4444"
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                  Satisfaction Trajectory
+                </p>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={sentiment.satisfaction_trajectory.map((val, i) => ({
+                        day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i] || `D${i + 1}`,
+                        satisfaction: val,
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <XAxis dataKey="day" stroke="#71717a" tick={{ fontSize: 12 }} />
+                      <YAxis
+                        stroke="#71717a"
+                        tick={{ fontSize: 12 }}
+                        domain={[0, 1]}
+                        tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#18181b",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          color: "#e4e4e7",
+                        }}
+                        formatter={(value: unknown) => [`${(Number(value) * 100).toFixed(0)}%`, "Satisfaction"]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="satisfaction"
+                        stroke="#a78bfa"
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: "#a78bfa", strokeWidth: 0 }}
+                        activeDot={{ r: 6, fill: "#a78bfa", strokeWidth: 0 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No sentiment data available yet. Start conversations to see customer satisfaction metrics.
+          </p>
         )}
       </div>
 

@@ -1,7 +1,11 @@
+"use client";
+
 import { ChatWidget } from "@/components/ChatWidget";
+import { ProjectProvider } from "@/components/ProjectContext";
 
 export default function WidgetDemoPage() {
   return (
+    <ProjectProvider>
     <div className="min-h-screen bg-[#0a0a0c]">
       <div className="absolute inset-0 bg-noise pointer-events-none" />
       <div className="absolute inset-0 bg-grid pointer-events-none" />
@@ -118,5 +122,6 @@ export default function WidgetDemoPage() {
 
       <ChatWidget />
     </div>
+    </ProjectProvider>
   );
 }

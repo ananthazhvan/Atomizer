@@ -51,6 +51,7 @@ export interface Project {
   name: string;
   description: string;
   business_domain: string;
+  settings: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -77,6 +78,9 @@ export interface MessageDetail {
   content: string;
   agent_type: string | null;
   confidence: number | null;
+  sentiment: string | null;
+  satisfaction: number | null;
+  urgency: number | null;
   created_at: string;
 }
 
@@ -88,6 +92,13 @@ export interface EscalatedConversation {
   escalated_at: string;
   escalation_reason: string | null;
   status: string;
+}
+
+export interface SentimentSummary {
+  overall_satisfaction: number;
+  sentiment_counts: Record<string, number>;
+  satisfaction_trajectory: number[];
+  total_messages: number;
 }
 
 export interface StreamEvent {
@@ -249,6 +260,13 @@ export const api = {
     return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`);
   },
 
+  updateProject(projectId: string, data: Partial<Project>) {
+    return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
   updateConversationStatus(conversationId: string, status: string) {
     return request<{ id: string; status: string }>(
       `/api/conversations/${encodeURIComponent(conversationId)}/status`,
@@ -268,6 +286,12 @@ export const api = {
   getEscalated(projectId: string, limit: number = 20) {
     return request<EscalatedConversation[]>(
       `/api/analytics/escalated?project_id=${encodeURIComponent(projectId)}&limit=${limit}`
+    );
+  },
+
+  getSentiment(projectId: string, period: string) {
+    return request<SentimentSummary>(
+      `/api/analytics/sentiment?project_id=${encodeURIComponent(projectId)}&period=${period}`
     );
   },
 };

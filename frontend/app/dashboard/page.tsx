@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { StatCard } from "@/components/StatCard";
 import { AgentBadge } from "@/components/AgentBadge";
+import { useProject } from "@/components/ProjectContext";
 import { api, ConversationSummary, AnalyticsOverview } from "@/lib/api";
 import { MessageSquare, Clock, CheckCircle2, Users } from "lucide-react";
 
@@ -28,6 +30,7 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const { projectId } = useProject();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AnalyticsOverview>(fallbackStats);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -35,8 +38,8 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       const [overview, convs] = await Promise.all([
-        api.getOverview("demo", "7d"),
-        api.getConversations("demo", 10),
+        api.getOverview(projectId, "7d"),
+        api.getConversations(projectId, 10),
       ]);
       setStats(overview);
       setConversations(convs);
@@ -46,7 +49,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     fetchData();
@@ -151,28 +154,33 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {conversations.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
-                    >
-                      <td className="px-5 py-3 text-sm text-foreground max-w-[320px] truncate">
-                        {row.message}
-                      </td>
-                      <td className="px-5 py-3">
-                        <AgentBadge type={row.agent_type} />
-                      </td>
-                      <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                        {(row.confidence * 100).toFixed(0)}%
-                      </td>
-                      <td className="px-5 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[row.status] || "text-zinc-400 bg-zinc-500/10"}`}
+                    <tr key={row.id} className="border-b border-border last:border-0">
+                      <td colSpan={5} className="p-0">
+                        <Link
+                          href={`/dashboard/conversations/${row.id}`}
+                          className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                          style={{ gridTemplateColumns: "1fr 100px 90px 100px 70px" }}
                         >
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">
-                        {row.time}
+                          <span className="text-sm text-foreground max-w-[320px] truncate block">
+                            {row.message}
+                          </span>
+                          <span className="block">
+                            <AgentBadge type={row.agent_type} />
+                          </span>
+                          <span className="font-mono text-xs text-muted-foreground block">
+                            {(row.confidence * 100).toFixed(0)}%
+                          </span>
+                          <span className="block">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[row.status] || "text-zinc-400 bg-zinc-500/10"}`}
+                            >
+                              {row.status}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground block">
+                            {row.time}
+                          </span>
+                        </Link>
                       </td>
                     </tr>
                   ))}

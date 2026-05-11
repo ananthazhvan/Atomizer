@@ -2,10 +2,12 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Upload, FileText, X, Loader2, FileUp } from "lucide-react";
+import { useProject } from "@/components/ProjectContext";
 import { api, DocumentItem } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function KnowledgePage() {
+  const { projectId } = useProject();
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -14,7 +16,7 @@ export default function KnowledgePage() {
 
   const fetchDocs = useCallback(async () => {
     try {
-      const data = await api.listKnowledge("demo");
+      const data = await api.listKnowledge(projectId);
       setDocuments(data.documents || []);
     } catch {
       setDocuments([
@@ -25,7 +27,7 @@ export default function KnowledgePage() {
     } finally {
       setLoadingDocs(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     fetchDocs();
@@ -45,7 +47,7 @@ export default function KnowledgePage() {
     setUploading(true);
     for (const file of files) {
       try {
-        await api.uploadKnowledge(file, "demo");
+        await api.uploadKnowledge(file, projectId);
         toast.success(`Uploaded ${file.name}`);
       } catch {
         toast.error(`Failed to upload ${file.name}`);
