@@ -8,6 +8,7 @@ import {
   Database,
   Settings,
   MessageSquare,
+  AlertTriangle,
   Atom,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/escalated", label: "Escalated", icon: AlertTriangle },
   { href: "/dashboard/knowledge", label: "Knowledge Base", icon: Database },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/widget", label: "Chat Widget", icon: MessageSquare },

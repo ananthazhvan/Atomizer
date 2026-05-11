@@ -111,4 +111,57 @@ export const api = {
   getProject(projectId: string) {
     return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`);
   },
+
+  updateConversationStatus(conversationId: string, status: string) {
+    return request<{ id: string; status: string }>(
+      `/api/conversations/${encodeURIComponent(conversationId)}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }
+    );
+  },
+
+  getConversation(conversationId: string) {
+    return request<ConversationDetail>(
+      `/api/conversations/${encodeURIComponent(conversationId)}`
+    );
+  },
+
+  getEscalated(projectId: string, limit: number = 20) {
+    return request<EscalatedConversation[]>(
+      `/api/analytics/escalated?project_id=${encodeURIComponent(projectId)}&limit=${limit}`
+    );
+  },
 };
+
+export interface ConversationDetail {
+  id: string;
+  project_id: string;
+  session_id: string;
+  status: string;
+  escalated_at: string | null;
+  escalation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: MessageDetail[];
+}
+
+export interface MessageDetail {
+  id: string;
+  role: string;
+  content: string;
+  agent_type: string | null;
+  confidence: number | null;
+  created_at: string;
+}
+
+export interface EscalatedConversation {
+  id: string;
+  session_id: string;
+  first_message: string;
+  agent_type: string;
+  escalated_at: string;
+  escalation_reason: string | null;
+  status: string;
+}
