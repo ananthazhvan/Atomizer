@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import String, Float, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -25,6 +25,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, default="")
     business_domain: Mapped[str] = mapped_column(String, default="")
+    settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -52,6 +53,9 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     agent_type: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sentiment: Mapped[str | None] = mapped_column(String, nullable=True)
+    satisfaction: Mapped[float | None] = mapped_column(Float, nullable=True)
+    urgency: Mapped[float | None] = mapped_column(Float, nullable=True)
     responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

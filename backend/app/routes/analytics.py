@@ -11,6 +11,7 @@ from app.models import (
     ConversationSummary,
     EscalatedConversation,
     DailyStats,
+    SentimentSummary,
 )
 
 router = APIRouter(tags=["analytics"])
@@ -260,3 +261,76 @@ async def list_escalated(
         )
 
     return escalated
+
+
+@router.get("/analytics/sentiment", response_model=SentimentSummary)
+async def sentiment_summary(
+    project_id: str = Query(...),
+    period: str = Query("7d"),
+    db: AsyncSession = Depends(get_db),
+):
+    cutoff = _period_cutoff(period)
+
+    conv_sub = select(Conversation.id).where(Conversation.project_id == project_id)
+    if cutoff is not None:
+        conv_sub = conv_sub.where(Conversation.created_at >= cutoff)
+
+    query = (
+        select(
+            Message.sentiment,
+            func.count().label("count"),
+            func.avg(Message.satisfaction).label("avg_satisfaction"),
+        )
+        .where(
+            Message.role == "user",
+            Message.sentiment != None,
+            Message.conversation_id.in_(conv_sub.scalar_subquery()),
+        )
+        .group_by(Message.sentiment)
+    )
+    result = await db.execute(query)
+    rows = result.all()
+
+    sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0, "frustrated": 0}
+    total = 0
+    weighted_satisfaction = 0.0
+
+    for row in rows:
+        if row.sentiment in sentiment_counts:
+            sentiment_counts[row.sentiment] = row.count
+        total += row.count
+        weighted_satisfaction += (row.avg_satisfaction or 0.5) * row.count
+
+    overall_satisfaction = round(weighted_satisfaction / total, 2) if total > 0 else 0.5
+
+    # Compute trajectory: average satisfaction per day over the period
+    days = 7 if period == "7d" else 30 if period == "30d" else 30
+    trajectory = []
+    for i in range(days):
+        day = datetime.utcnow() - timedelta(days=days - 1 - i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+
+        day_conv = select(Conversation.id).where(
+            Conversation.project_id == project_id,
+            Conversation.created_at >= day_start,
+            Conversation.created_at < day_end,
+        )
+        if cutoff is not None:
+            day_conv = day_conv.where(Conversation.created_at >= cutoff)
+
+        day_sat = await db.scalar(
+            select(func.avg(Message.satisfaction)).where(
+                Message.role == "user",
+                Message.satisfaction != None,
+                Message.conversation_id.in_(day_conv.scalar_subquery()),
+            )
+        )
+        trajectory.append(round(day_sat or 0.5, 2))
+
+    return SentimentSummary(
+        overall_satisfaction=overall_satisfaction,
+        sentiment_counts=sentiment_counts,
+        satisfaction_trajectory=trajectory,
+        total_messages=total,
+    )

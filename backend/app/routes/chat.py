@@ -23,6 +23,7 @@ from app.agents.sales import SalesAgent
 from app.agents.support import SupportAgent
 from app.agents.care import CustomerCareAgent
 from app.agents.supervisor import SupervisorAgent
+from app.agents.sentiment import SentimentAnalyzer
 
 router = APIRouter(tags=["chat"])
 
@@ -112,6 +113,10 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
         history = await _load_history(db, request.session_id)
 
+        # Sentiment analysis on the user message
+        sentiment_analyzer = SentimentAnalyzer(client)
+        sentiment_result = await sentiment_analyzer.analyze(request.message)
+
         agent = agent_cls(client)
         knowledge = await _get_knowledge_context(request.message, request.project_id)
         result = await agent.run(request.message, history, knowledge)
@@ -142,6 +147,9 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     response=agent_response,
                     agent_type=handoff["handoff_to"],
                     confidence=final_confidence,
+                    sentiment=sentiment_result["sentiment"],
+                    satisfaction=sentiment_result["satisfaction"],
+                    urgency=sentiment_result["urgency"],
                 )
 
                 return ChatResponse(
@@ -176,6 +184,9 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     confidence=confidence,
                     status="escalated",
                     escalation_reason=review.get("issues", "Supervisor flagged for escalation"),
+                    sentiment=sentiment_result["sentiment"],
+                    satisfaction=sentiment_result["satisfaction"],
+                    urgency=sentiment_result["urgency"],
                 )
                 return ChatResponse(
                     response=final_response,
@@ -194,6 +205,9 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             response=agent_response,
             agent_type=category,
             confidence=final_confidence,
+            sentiment=sentiment_result["sentiment"],
+            satisfaction=sentiment_result["satisfaction"],
+            urgency=sentiment_result["urgency"],
         )
 
         return ChatResponse(
@@ -231,6 +245,10 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
             yield f"event: agent\ndata: {json.dumps({'agent_type': category, 'confidence': confidence})}\n\n"
 
+            # Sentiment analysis on the user message
+            sentiment_analyzer = SentimentAnalyzer(client)
+            sentiment_result = await sentiment_analyzer.analyze(request.message)
+
             # Phase 2: Stream specialist response
             history = await _load_history(db, request.session_id)
             agent = agent_cls(client)
@@ -263,6 +281,9 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 confidence=confidence,
                 status=status,
                 escalation_reason=escalation_reason,
+                sentiment=sentiment_result["sentiment"],
+                satisfaction=sentiment_result["satisfaction"],
+                urgency=sentiment_result["urgency"],
             )
 
             yield f"event: done\ndata: {json.dumps({'confidence': confidence, 'status': status})}\n\n"
@@ -308,6 +329,9 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
                 content=m.content,
                 agent_type=m.agent_type,
                 confidence=m.confidence,
+                sentiment=m.sentiment,
+                satisfaction=m.satisfaction,
+                urgency=m.urgency,
                 created_at=m.created_at,
             )
             for m in conversation.messages
@@ -377,6 +401,9 @@ async def _store_conversation(
     confidence: float,
     status: str = "active",
     escalation_reason: str | None = None,
+    sentiment: str = "neutral",
+    satisfaction: float = 0.5,
+    urgency: float = 0.0,
 ):
     result = await db.execute(
         select(Conversation).where(Conversation.session_id == session_id)
@@ -406,6 +433,9 @@ async def _store_conversation(
         conversation_id=conversation.id,
         role="user",
         content=user_message,
+        sentiment=sentiment,
+        satisfaction=satisfaction,
+        urgency=urgency,
         created_at=now,
     )
     db.add(user_msg)

@@ -13,7 +13,15 @@ class ProjectResponse(BaseModel):
     name: str
     description: str
     business_domain: str
+    settings: dict | None = None
     created_at: datetime
+
+
+class ProjectUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    business_domain: str | None = None
+    settings: dict | None = None
 
 
 class ChatRequest(BaseModel):
@@ -90,6 +98,9 @@ class MessageDetail(BaseModel):
     content: str
     agent_type: str | None = None
     confidence: float | None = None
+    sentiment: str | None = None
+    satisfaction: float | None = None
+    urgency: float | None = None
     created_at: datetime
 
 
@@ -101,3 +112,10 @@ class EscalatedConversation(BaseModel):
     escalated_at: datetime
     escalation_reason: str | None = None
     status: str
+
+
+class SentimentSummary(BaseModel):
+    overall_satisfaction: float
+    sentiment_counts: dict[str, int]
+    satisfaction_trajectory: list[float]
+    total_messages: int
